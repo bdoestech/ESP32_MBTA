@@ -18,10 +18,10 @@ HTTPClient https;
 WiFiClientSecure *client = new WiFiClientSecure;
 struct LineStops {
   const char* id;
-  const char* name;
+  String name;
 };
 
-std::vector<LineStops> orangeLineStops; // dynamic array
+std::vector<LineStops> allStops; // dynamic array
 // orangeLineStops.reserve(500);
 
 // const char* test_root_ca= \
@@ -139,31 +139,32 @@ String getStopName(String stop_id) {
   return doc["data"][0]["attributes"]["name"];
 }
 
-// String getStopNameFromCache(String stop_id) {
-//   for (LineStops& stop : orangeLineStops) {
-//     if (stop.id == stop_id) {
-//       return stop.name;
-//     }
-//   }
-//   return "Unknown Stop";
-// }
+String getStopNameFromVector(const char* stop_id) {
+  for (LineStops& stop : allStops) {
+    if (strcmp(stop.id, stop_id) == 0) {
+      return stop.name;
+    }
+  }
+  return "Unknown Stop";
+}
 
-void loadAllStops(String line) {
-  String response = getInfo("stops", "route_type", "1"); // batch request
+void loadAllStops(String type) {
+  String response = getInfo("stops", "route_type", type); // batch request
   // Serial.println(response);
   const char* json = response.c_str();
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json);
   if (error) {
-    Serial.println("Failed to load stops");
+    Serial.print("deserializeJson() returned ");
+    Serial.println(error.c_str());
     return;
   }
   JsonArray data = doc["data"];
   for (JsonObject stop : data) {
     LineStops info;
     info.id = stop["id"];
-    info.name = stop["attributes"]["name"];
-    orangeLineStops.push_back(info);
+    info.name = String((const char*)stop["attributes"]["name"]);
+    allStops.push_back(info);
     // Serial.println("added");
     // Serial.println(ESP.getFreeHeap());
 
@@ -186,13 +187,15 @@ void processResults(String apiResponse) {
   // Serial.print("1");
   JsonArray data = doc["data"];
   for (JsonObject vehicle : data){
-    String id = vehicle["id"];
-    String stop_id = vehicle["relationships"]["stop"]["data"]["id"];
-    String status = vehicle["attributes"]["current_status"];
-
-    Serial.println("ID = " + id + ", STOP_ID = " + stop_id + ", STATUS = " + status);
-    String stopName = getStopName(stop_id);
+    const char* id = vehicle["id"];
+    const char* stop_id = vehicle["relationships"]["stop"]["data"]["id"];
+    const char* status = vehicle["attributes"]["current_status"];
+    
+    String stopName = getStopNameFromVector(stop_id);
     Serial.println(stopName);
+    Serial.print("ID = ");
+    Serial.print(stop_id);//+ ", STOP_ID = " + stop_id + ", STATUS = " + status);
+    Serial.println();
   }
   // Serial.println("After loop?");
 }
@@ -217,9 +220,10 @@ void setup() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
-  loadAllStops("Orange");
+  loadAllStops("1");
+  // loadAllStops("0");
   Serial.println("Stops Found");
-  for (LineStops& stop : orangeLineStops) {
+  for (LineStops& stop : allStops) {
     Serial.print("Stop ID: ");
     Serial.print(stop.id);
     Serial.print(" | Stop Name: ");
@@ -234,9 +238,9 @@ void loop() {
 
   unsigned long startTime = millis();
 
-  // apiResponse = getInfo("vehicles", "route", "Orange");
+  apiResponse = getInfo("vehicles", "route", "Orange");
   // Serial.print(apiResponse);
-  // processResults(apiResponse);
+  processResults(apiResponse);
   // Serial.println("0");
 
 
