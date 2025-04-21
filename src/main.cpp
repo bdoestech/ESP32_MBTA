@@ -17,7 +17,7 @@ const char *MBTA_URL = "https://api-v3.mbta.com/";
 HTTPClient https;
 WiFiClientSecure *client = new WiFiClientSecure;
 struct LineStops {
-  const char* id;
+  String id;
   String name;
 };
 
@@ -139,9 +139,13 @@ String getStopName(String stop_id) {
   return doc["data"][0]["attributes"]["name"];
 }
 
-String getStopNameFromVector(const char* stop_id) {
+String getStopNameFromVector(String stop_id) {
+  int dashIndex = stop_id.indexOf('-');
+  if (dashIndex != -1){
+    return stop_id.substring(0, dashIndex);
+  }
   for (LineStops& stop : allStops) {
-    if (strcmp(stop.id, stop_id) == 0) {
+    if (String(stop.id) == stop_id) {
       return stop.name;
     }
   }
@@ -160,14 +164,16 @@ void loadAllStops(String type) {
     return;
   }
   JsonArray data = doc["data"];
+
   for (JsonObject stop : data) {
     LineStops info;
-    info.id = stop["id"];
-    info.name = String((const char*)stop["attributes"]["name"]);
+    info.id = stop["id"].as<String>();
+    info.name = stop["attributes"]["name"].as<String>();
     allStops.push_back(info);
     // Serial.println("added");
+    // Serial.println(stop["id"].as<String>());
+    // Serial.println(info.id);
     // Serial.println(ESP.getFreeHeap());
-
   }
 }
 
@@ -190,11 +196,17 @@ void processResults(String apiResponse) {
     const char* id = vehicle["id"];
     const char* stop_id = vehicle["relationships"]["stop"]["data"]["id"];
     const char* status = vehicle["attributes"]["current_status"];
-    
-    String stopName = getStopNameFromVector(stop_id);
+    int direction = vehicle["attributes"]["direction_id"];
+    // Serial.println(status);
+    // Serial.println(direction);
+    // int stopIDAsjusted = atoi(stop_id) - direction;
+
+    String stopName = getStopNameFromVector(String((const char*)stop_id));//(const char*)stopIDAsjusted);
     Serial.println(stopName);
     Serial.print("ID = ");
     Serial.print(stop_id);//+ ", STOP_ID = " + stop_id + ", STATUS = " + status);
+    // Serial.print("Adjusted ID = ");
+    // Serial.print(stopIDAsjusted);//+ ", STOP_ID = " + stop_id + ", STATUS = " + status);
     Serial.println();
   }
   // Serial.println("After loop?");
@@ -220,6 +232,9 @@ void setup() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
+
+  allStops.reserve(106);
+
   loadAllStops("1");
   // loadAllStops("0");
   Serial.println("Stops Found");
@@ -230,6 +245,7 @@ void setup() {
     Serial.print(stop.name);
     Serial.println();
   }
+  Serial.println();
 }
 
 
@@ -248,8 +264,10 @@ void loop() {
   unsigned long endTime = millis();
   Serial.print("Elapsed time (ms): ");
   Serial.println(endTime - startTime);
+  Serial.print("Free Heap: ");
+  Serial.println(ESP.getFreeHeap());
   Serial.println("Waiting 10secs before the next round...\n");
-  delay(10000);
+  delay(100000);
 }
 
 
